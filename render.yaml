@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dashboard-pcp
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
