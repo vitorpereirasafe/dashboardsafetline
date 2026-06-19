@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCP — Planejamento de Injeção</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0d1a2b; --surface:#112033; --surface2:#163050;
+  --border:#1e3a5a; --green:#00e676; --yellow:#ffd600; --red:#ff1744;
+  --text:#d6e8f5; --muted:#4a6a85; --accent:#4da6d6;
+  --blue1:#1a4a7a; --blue2:#1e5a96; --blue3:#2e7ab8;
+  --orange:#ff9800; --purple:#ce93d8;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Barlow Condensed',sans-serif;
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(30,90,150,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(30,90,150,.05) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+body::after{
+  content:'vitor emanuel';position:fixed;bottom:5px;left:10px;
+  font-size:.5rem;color:rgba(160,200,235,.3);letter-spacing:.18em;
+  pointer-events:none;z-index:9999;user-select:none;
+}
+
+#root{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;
+  height:100vh;padding:8px;gap:6px;
+}
+
+/* TOPBAR */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(135deg,var(--blue1),var(--blue2) 60%,var(--blue3));
+  border:1px solid #2a5a8a;border-radius:7px;
+  padding:6px 14px;flex-shrink:0;
+  box-shadow:0 2px 12px rgba(10,30,60,.5);
+}
+.brand{font-weight:900;font-size:1.2rem;letter-spacing:.12em;text-transform:uppercase;color:#fff;}
+.divv{width:1px;height:20px;background:rgba(255,255,255,.25);margin:0 10px;}
+.subtext{font-size:.68rem;color:rgba(255,255,255,.6);}
+.topbar-logo{display:flex;align-items:center;gap:6px;}
+.topbar-right{display:flex;gap:7px;align-items:center;}
+.chip{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  border-radius:5px;padding:3px 11px;text-align:center;
+}
+.chip .val{font-size:1.1rem;font-weight:700;line-height:1;}
+.chip .lbl{font-size:.55rem;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;}
+.chip.g .val{color:var(--green);}
+.chip.y .val{color:var(--yellow);}
+.chip.b .val{color:var(--accent);}
+.btn-reset{
+  padding:5px 13px;border-radius:5px;border:1px solid var(--red);
+  background:rgba(255,23,68,.1);color:var(--red);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;
+  cursor:pointer;transition:all .15s;
+}
+.btn-reset:hover{background:var(--red);color:#fff;}
+
+/* GRID 2x2 */
+#grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:6px;flex:1;min-height:0;
+}
+
+/* PAINEL */
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;display:flex;flex-direction:column;
+  overflow:hidden;min-height:0;
+}
+.panel.loaded{border-color:rgba(77,166,214,.35);}
+.panel.especial-loaded{border-color:rgba(255,152,0,.45);}
+
+.phead{
+  display:flex;align-items:center;gap:7px;padding:5px 10px;
+  background:linear-gradient(90deg,var(--blue1),var(--blue2));
+  border-bottom:1px solid #1e3a5a;flex-shrink:0;
+}
+.phead.especial{background:linear-gradient(90deg,#3a2a0a,#5a3a0a);}
+.pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;}
+.pname{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.9);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pinj{font-size:1.35rem;font-weight:900;color:#fff;white-space:nowrap;letter-spacing:.04em;}
+.ptipo{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,152,0,.2);color:var(--orange);border:1px solid rgba(255,152,0,.4);}
+.pstats{display:flex;gap:4px;font-size:.72rem;white-space:nowrap;}
+.ps-ok{color:var(--green);}
+.ps-pend{color:var(--yellow);}
+
+/* UPLOAD */
+.upzone{
+  border:1px dashed var(--border);border-radius:5px;
+  padding:5px 8px;text-align:center;cursor:pointer;
+  transition:all .2s;background:var(--bg);
+  margin:5px 6px 0;flex-shrink:0;
+}
+.upzone:hover,.upzone.drag{border-color:var(--blue3);background:rgba(46,122,184,.06);}
+.upzone input{display:none;}
+.uptxt{color:var(--muted);font-size:.67rem;line-height:1.4;}
+.uptxt span{color:#7ab8e0;font-weight:600;}
+.upzone.ok{border-color:rgba(0,230,118,.4);background:rgba(0,230,118,.04);padding:3px 8px;}
+.upzone.ok .uptxt{color:rgba(0,230,118,.75);font-size:.62rem;}
+.upzone.ok-esp{border-color:rgba(255,152,0,.45);background:rgba(255,152,0,.04);padding:3px 8px;}
+.upzone.ok-esp .uptxt{color:rgba(255,152,0,.85);font-size:.62rem;}
+.upzone.loading{border-color:var(--blue3);cursor:wait;}
+.upzone.err .uptxt{color:var(--red);}
+.spin{
+  display:inline-block;width:11px;height:11px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;
+  vertical-align:middle;margin-right:4px;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* SCROLL */
+.gscroll{flex:1;overflow-y:auto;padding:6px 6px 8px;min-height:0;}
+.gscroll::-webkit-scrollbar{width:4px;}
+.gscroll::-webkit-scrollbar-track{background:transparent;}
+.gscroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── ESPECIAL: agrupamento / OF ── */
+.esp-header{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 6px 4px;margin-bottom:6px;
+  border-bottom:1px solid rgba(255,152,0,.2);
+}
+.esp-agrupo{
+  font-size:.75rem;font-weight:900;color:var(--orange);
+  letter-spacing:.04em;text-transform:uppercase;flex:1;
+}
+.esp-qtd{
+  font-size:.68rem;font-weight:700;color:rgba(255,152,0,.65);
+}
+.esp-descr{
+  font-size:.6rem;color:var(--muted);padding:0 6px 6px;
+  font-style:italic;
+}
+.esp-bloco{margin-bottom:10px;}
+
+/* GIRO (injetoras) */
+.gbloco{margin-bottom:8px;}
+.gbloco:last-child{margin-bottom:0;}
+.glabel{display:flex;align-items:center;gap:6px;padding:3px 4px 4px;margin-bottom:4px;}
+.gnum{font-size:1rem;font-weight:900;color:var(--accent);}
+.gcnt{font-size:.65rem;color:var(--muted);}
+.gprog{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;max-width:55px;}
+.gprogfill{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width .4s;}
+.gprogfill.esp{background:linear-gradient(90deg,var(--orange),var(--yellow));}
+.pgrupo{margin-bottom:6px;}
+.pgrupo:last-child{margin-bottom:0;}
+.plabel{font-size:.62rem;font-weight:800;letter-spacing:.04em;color:var(--yellow);text-transform:uppercase;padding:0 4px 3px;opacity:.85;}
+.gstatus{font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.06em;}
+.gstatus.aguardando{background:var(--border);color:var(--muted);}
+.gstatus.iniciado{background:rgba(255,214,0,.12);color:var(--yellow);border:1px solid rgba(255,214,0,.35);}
+.gstatus.completo{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.35);}
+
+/* REMESSA GRID */
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:4px;}
+
+/* TILE padrão */
+.tile{
+  border:1px solid var(--border);border-radius:5px;
+  background:var(--bg);padding:5px 6px 4px;
+  cursor:pointer;user-select:none;
+  transition:background .12s,border-color .12s,opacity .12s;
+  display:flex;flex-direction:column;gap:1px;min-width:0;
+}
+.tile:hover{border-color:rgba(77,166,214,.5);}
+.tile.click1{border-color:rgba(77,166,214,.6);background:rgba(77,166,214,.07);}
+.tile.done{background:rgba(0,230,118,.14)!important;border-color:rgba(0,230,118,.55)!important;}
+.tile.done .tcode{color:var(--green);}
+.tile.done .tmodel{color:rgba(0,230,118,.75);}
+.tile.done .tpos{color:rgba(0,230,118,.5);}
+.tile.out{animation:tileOut .28s ease forwards;pointer-events:none;}
+
+/* TILE especial (OF) */
+.tile.esp-tile{border-color:rgba(255,152,0,.3);background:rgba(255,152,0,.04);}
+.tile.esp-tile:hover{border-color:rgba(255,152,0,.6);}
+.tile.esp-tile.click1{border-color:rgba(255,152,0,.7);background:rgba(255,152,0,.1);}
+.tile.esp-tile.done{background:rgba(0,230,118,.14)!important;border-color:rgba(0,230,118,.55)!important;}
+
+@keyframes tileOut{0%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(.8);}}
+
+.tpos{font-size:.55rem;color:var(--muted);line-height:1;margin-bottom:1px;}
+.tcode{font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:700;color:var(--text);line-height:1.2;word-break:break-all;}
+.tmodel{font-size:.65rem;font-weight:600;color:var(--yellow);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;margin-top:1px;}
+.tgrade{font-size:.6rem;font-weight:700;color:var(--orange);line-height:1.2;margin-top:1px;}
+.tqtd{font-size:.6rem;color:var(--muted);line-height:1.2;margin-top:1px;}
+
+/* EMPTY */
+.empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.75rem;text-align:center;padding:8px;}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:14px;right:14px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:7px;padding:8px 14px;font-size:.78rem;
+  z-index:1000;opacity:0;transform:translateY(8px);
+  transition:all .25s;pointer-events:none;max-width:280px;
+}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.s{border-color:var(--green);color:var(--green);}
+.toast.w{border-color:var(--yellow);color:var(--yellow);}
+.toast.e{border-color:var(--red);color:var(--red);}
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="topbar">
+    <div style="display:flex;align-items:center;">
+      <div class="brand">PCP</div>
+      <div class="divv"></div>
+      <div class="subtext">Planejamento de Injeção — 4 planos simultâneos</div>
+    </div>
+    <div class="topbar-logo">
+      <svg width="110" height="28" viewBox="0 0 110 28" fill="none">
+        <rect x="0" y="2" width="18" height="4" rx="1.5" fill="white"/>
+        <rect x="0" y="10" width="18" height="4" rx="1.5" fill="white"/>
+        <rect x="0" y="18" width="18" height="4" rx="1.5" fill="white"/>
+        <rect x="9" y="2" width="9" height="4" fill="rgba(30,90,150,0.9)"/>
+        <rect x="0" y="18" width="9" height="4" fill="rgba(30,90,150,0.9)"/>
+        <rect x="24" y="4" width="14" height="3" rx="1.2" fill="rgba(255,255,255,0.85)"/>
+        <rect x="24" y="11" width="14" height="3" rx="1.2" fill="rgba(255,255,255,0.85)"/>
+        <rect x="24" y="18" width="14" height="3" rx="1.2" fill="rgba(255,255,255,0.85)"/>
+        <text x="44" y="19" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="14" fill="white" letter-spacing="0.5">Safetline</text>
+        <text x="103" y="10" font-family="'Barlow Condensed',sans-serif" font-size="7" fill="rgba(255,255,255,0.7)">®</text>
+      </svg>
+    </div>
+    <div class="topbar-right">
+      <div class="chip g"><div class="val" id="s-ent">0</div><div class="lbl">Entregues</div></div>
+      <div class="chip y"><div class="val" id="s-pend">0</div><div class="lbl">Pendentes</div></div>
+      <div class="chip b"><div class="val" id="s-tot">0</div><div class="lbl">Total</div></div>
+      <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+    </div>
+  </div>
+  <div id="grid"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// ── CONFIG ──
+const SLOTS  = [0,1,2,3];
+const LABELS = ['Plano A','Plano B','Plano C','Plano D'];
+const COLORS = ['#4da6d6','#ce93d8','#ffd600','#00e676'];
+const DBL_MS = 380;
+
+// plan.tipo = 'injetora' | 'especial'
+// injetora: { giros:[{num,status,remessas:[{codigo,modelo,produto,estado}]}] }
+// especial: { agrupamentos:[{codigo,descricao,qtdTotal,ofs:[{of,modelo,grade,qtd,estado}]}] }
+let plans = SLOTS.map(i => ({id:i, plano:'', injetora:'', tipo:'injetora', giros:[], agrupamentos:[]}));
+const cst  = {};
+let toastTimer;
+
+function initPdfJs() {
+  if (typeof pdfjsLib === 'undefined') return;
+  try { pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e){}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initPdfJs();
+  renderAll();
+});
+
+// ── RENDER ──
+function renderAll() {
+  const g = document.getElementById('grid');
+  g.innerHTML = SLOTS.map(i => panelHTML(i)).join('');
+  SLOTS.forEach(i => bindUpload(i));
+  updateStats();
+}
+
+function bindUpload(i) {
+  const uz = document.getElementById('uz'+i);
+  if (!uz) return;
+  uz.addEventListener('dragover',  e => { e.preventDefault(); uz.classList.add('drag'); });
+  uz.addEventListener('dragleave', () => uz.classList.remove('drag'));
+  uz.addEventListener('drop', e => {
+    e.preventDefault(); uz.classList.remove('drag');
+    const f = e.dataTransfer.files[0]; if (f) readFile(i, f);
+  });
+  const inp = document.getElementById('fi'+i);
+  if (inp) inp.addEventListener('change', e => { const f = e.target.files[0]; if (f) readFile(i, f); });
+}
+
+// ── CONTAGEM DE ITENS (unificada injetora + especial) ──
+function countItems(p) {
+  let ent=0, pend=0;
+  if (p.tipo === 'especial') {
+    for (const ag of p.agrupamentos)
+      for (const of_ of ag.ofs) {
+        if (of_.estado==='removido') continue;
+        of_.estado==='confirmado' ? ent++ : pend++;
+      }
+  } else {
+    for (const g of p.giros) for (const r of g.remessas) {
+      if (r.estado==='removido') continue;
+      r.estado==='confirmado' ? ent++ : pend++;
+    }
+  }
+  return {ent, pend};
+}
+
+function panelHTML(i) {
+  const p = plans[i];
+  const {ent,pend} = countItems(p);
+  const isEsp = p.tipo === 'especial';
+
+  const headClass = isEsp ? 'phead especial' : 'phead';
+  const panelClass = `panel${p.plano ? (isEsp?' especial-loaded':' loaded') : ''}`;
+  const zoneClass = p.plano ? (isEsp?'upzone ok-esp':'upzone ok') : 'upzone';
+
+  let upTxt = '';
+  if (p.plano) {
+    if (isEsp) {
+      const totalOFs = p.agrupamentos.reduce((s,a) => s+a.ofs.length, 0);
+      upTxt = `🏷️ <strong>${p.plano}</strong> — ${p.agrupamentos.length} agrup. / ${totalOFs} OFs`;
+    } else {
+      upTxt = `✅ <strong>${p.plano}</strong> — ${p.giros.length} giros`;
+    }
+  } else {
+    upTxt = `📄 <span>Arraste o PDF</span> ou clique para carregar`;
+  }
+
+  let bodyHTML = '';
+  if (!p.plano) {
+    bodyHTML = `<div class="empty">Carregue um planejamento PDF</div>`;
+  } else if (isEsp) {
+    const ativos = p.agrupamentos.filter(ag => ag.ofs.some(o => o.estado!=='removido'));
+    bodyHTML = ativos.length === 0
+      ? `<div class="empty">Todos os itens concluídos ✓</div>`
+      : ativos.map(ag => agrupamentoHTML(i, ag)).join('');
+  } else {
+    const ativos = p.giros.filter(g => g.remessas.some(r => r.estado!=='removido'));
+    bodyHTML = ativos.length === 0
+      ? `<div class="empty">Todos os giros concluídos ✓</div>`
+      : ativos.map(g => giroHTML(i, g)).join('');
+  }
+
+  return `
+<div class="${panelClass}" id="panel${i}">
+  <div class="${headClass}">
+    <span class="pslot" style="color:${COLORS[i]}">${LABELS[i]}</span>
+    <div class="divv" style="margin:0 7px;background:rgba(255,255,255,.2)"></div>
+    <span class="pname">${p.plano||'—'}</span>
+    ${isEsp ? `<span class="ptipo">ESPECIAL</span>` : (p.injetora ? `<span class="pinj">Inj: ${p.injetora}</span>` : '')}
+    ${p.plano ? `<div class="pstats"><span class="ps-ok">✓${ent}</span><span style="color:#4a6a85"> / </span><span class="ps-pend">${pend}p</span></div>` : ''}
+  </div>
+  <div class="${zoneClass}" id="uz${i}" onclick="document.getElementById('fi${i}').click()">
+    <input type="file" id="fi${i}" accept=".pdf">
+    <div class="uptxt" id="ut${i}">${upTxt}</div>
+  </div>
+  <div class="gscroll" id="gs${i}">${bodyHTML}</div>
+</div>`;
+}
+
+// ── HTML ESPECIAL: agrupamento + OFs ──
+function agrupamentoHTML(pi, ag) {
+  const ent = ag.ofs.filter(o => o.estado==='confirmado').length;
+  const tot = ag.ofs.length;
+  const pct = tot>0 ? Math.round(ent/tot*100) : 0;
+  const vis = ag.ofs.filter(o => o.estado!=='removido');
+
+  return `
+<div class="esp-bloco" id="ag${pi}_${ag.idx}">
+  <div class="esp-header">
+    <span class="esp-agrupo">${ag.codigo}</span>
+    <div class="gprog" style="max-width:45px"><div class="gprogfill esp" style="width:${pct}%"></div></div>
+    <span class="esp-qtd">${vis.length} OF${vis.length!==1?'s':''}</span>
+  </div>
+  ${ag.descricao ? `<div class="esp-descr">${ag.descricao}</div>` : ''}
+  <div class="rgrid">
+    ${vis.map((of_, oi) => {
+      const realIdx = ag.ofs.indexOf(of_);
+      return ofTileHTML(pi, ag.idx, realIdx, of_);
+    }).join('')}
+  </div>
+</div>`;
+}
+
+function ofTileHTML(pi, agIdx, ofIdx, of_) {
+  const doneClass = of_.estado==='confirmado' ? ' done' : '';
+  return `
+<div class="tile esp-tile${doneClass}" id="ot${pi}_${agIdx}_${ofIdx}" onclick="handleClickEsp(${pi},${agIdx},${ofIdx})">
+  <div class="tpos">OF #${of_.of}</div>
+  <div class="tcode">${of_.modelo}</div>
+  <div class="tgrade">Gr ${of_.grade}</div>
+  <div class="tqtd">Qtd: ${of_.qtd}</div>
+</div>`;
+}
+
+// ── HTML INJETORA: giro ──
+function giroHTML(pi, giro) {
+  const vis = giro.remessas.filter(r => r.estado!=='removido');
+  const ent = giro.remessas.filter(r => r.estado==='confirmado').length;
+  const tot = giro.remessas.length;
+  const pct = tot>0 ? Math.round(ent/tot*100) : 0;
+
+  const grupos = [];
+  for (const r of giro.remessas) {
+    const idxOriginal = giro.remessas.indexOf(r);
+    if (r.estado === 'removido') continue;
+    const last = grupos[grupos.length-1];
+    if (last && last.produto === r.produto) {
+      last.items.push({ r, ri: idxOriginal });
+    } else {
+      grupos.push({ produto: r.produto, items: [{ r, ri: idxOriginal }] });
+    }
+  }
+
+  const gruposHTML = grupos.map(grp => `
+    <div class="pgrupo">
+      ${grp.produto ? `<div class="plabel">${grp.produto}</div>` : ''}
+      <div class="rgrid">
+        ${grp.items.map(({r,ri}) => tileHTML(pi, giro.num, ri, r)).join('')}
+      </div>
+    </div>`).join('');
+
+  return `
+<div class="gbloco" id="gb${pi}_${giro.num}">
+  <div class="glabel">
+    <span class="gnum">Giro ${giro.num}</span>
+    <span class="gcnt">${vis.length} rem</span>
+    <div class="gprog"><div class="gprogfill" style="width:${pct}%"></div></div>
+    <span class="gstatus ${giro.status}">${giro.status}</span>
+  </div>
+  ${gruposHTML}
+</div>`;
+}
+
+function tileHTML(pi, gn, ri, rem) {
+  const m = (rem.modelo && rem.modelo!=='—' && rem.modelo!=='-') ? rem.modelo : '';
+  return `
+<div class="tile${rem.estado==='confirmado'?' done':''}" id="rt${pi}_${gn}_${ri}" onclick="handleClick(${pi},${gn},${ri})">
+  <div class="tpos">#${ri+1}</div>
+  <div class="tcode">${rem.codigo}</div>
+  ${m?`<div class="tmodel">${m}</div>`:''}
+</div>`;
+}
+
+// ── INTERAÇÃO — INJETORA ──
+function handleClick(pi, gn, ri) {
+  const key = `${pi}_${gn}_${ri}`;
+  const p   = plans[pi];
+  const giro = p.giros.find(g => g.num===gn);
+  if (!giro) return;
+  const rem = giro.remessas[ri];
+  if (!rem || rem.estado==='removido') return;
+
+  const cs = cst[key] || {count:0, timer:null};
+  cs.count++;
+  if (cs.timer) clearTimeout(cs.timer);
+
+  if (cs.count >= 2) {
+    cst[key] = {count:0, timer:null};
+    doActionInjetora(pi, gn, ri, rem, giro);
+  } else {
+    const el = document.getElementById(`rt${pi}_${gn}_${ri}`);
+    if (el) el.classList.add('click1');
+    cs.timer = setTimeout(() => {
+      cst[key] = {count:0, timer:null};
+      const el2 = document.getElementById(`rt${pi}_${gn}_${ri}`);
+      if (el2) el2.classList.remove('click1');
+    }, DBL_MS);
+    cst[key] = cs;
+  }
+}
+
+function doActionInjetora(pi, gn, ri, rem, giro) {
+  const el = document.getElementById(`rt${pi}_${gn}_${ri}`);
+  if (rem.estado === 'normal') {
+    rem.estado = 'confirmado';
+    if (el) { el.classList.remove('click1'); el.classList.add('done'); }
+    updateGiroStatus(giro);
+    rerenderStats(pi);
+    updateStats();
+    const suf = rem.modelo&&rem.modelo!=='—' ? ` — ${rem.modelo}` : '';
+    toast(`✓ ${rem.codigo}${suf}`, 's');
+  } else if (rem.estado === 'confirmado') {
+    if (el) {
+      el.classList.add('out');
+      el.addEventListener('animationend', () => {
+        rem.estado = 'removido';
+        updateGiroStatus(giro);
+        rerenderPanel(pi);
+        updateStats();
+      }, {once:true});
+    } else {
+      rem.estado = 'removido';
+      updateGiroStatus(giro);
+      rerenderPanel(pi);
+      updateStats();
+    }
+  }
+}
+
+// ── INTERAÇÃO — ESPECIAL ──
+function handleClickEsp(pi, agIdx, ofIdx) {
+  const key = `esp_${pi}_${agIdx}_${ofIdx}`;
+  const p   = plans[pi];
+  const ag  = p.agrupamentos.find(a => a.idx===agIdx);
+  if (!ag) return;
+  const of_ = ag.ofs[ofIdx];
+  if (!of_ || of_.estado==='removido') return;
+
+  const cs = cst[key] || {count:0, timer:null};
+  cs.count++;
+  if (cs.timer) clearTimeout(cs.timer);
+
+  if (cs.count >= 2) {
+    cst[key] = {count:0, timer:null};
+    doActionEsp(pi, agIdx, ofIdx, of_, ag);
+  } else {
+    const el = document.getElementById(`ot${pi}_${agIdx}_${ofIdx}`);
+    if (el) el.classList.add('click1');
+    cs.timer = setTimeout(() => {
+      cst[key] = {count:0, timer:null};
+      const el2 = document.getElementById(`ot${pi}_${agIdx}_${ofIdx}`);
+      if (el2) el2.classList.remove('click1');
+    }, DBL_MS);
+    cst[key] = cs;
+  }
+}
+
+function doActionEsp(pi, agIdx, ofIdx, of_, ag) {
+  const el = document.getElementById(`ot${pi}_${agIdx}_${ofIdx}`);
+  if (of_.estado === 'normal') {
+    of_.estado = 'confirmado';
+    if (el) { el.classList.remove('click1'); el.classList.add('done'); }
+    rerenderStats(pi);
+    updateStats();
+    toast(`✓ OF ${of_.of} — ${of_.modelo} Gr ${of_.grade}`, 's');
+  } else if (of_.estado === 'confirmado') {
+    if (el) {
+      el.classList.add('out');
+      el.addEventListener('animationend', () => {
+        of_.estado = 'removido';
+        rerenderPanel(pi);
+        updateStats();
+      }, {once:true});
+    } else {
+      of_.estado = 'removido';
+      rerenderPanel(pi);
+      updateStats();
+    }
+  }
+}
+
+function rerenderPanel(i) {
+  const old = document.getElementById('panel'+i);
+  if (!old) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = panelHTML(i);
+  old.replaceWith(tmp.firstElementChild);
+  bindUpload(i);
+}
+
+function rerenderStats(i) {
+  const {ent,pend} = countItems(plans[i]);
+  const el = document.querySelector(`#panel${i} .pstats`);
+  if (el) el.innerHTML = `<span class="ps-ok">✓${ent}</span><span style="color:#4a6a85"> / </span><span class="ps-pend">${pend}p</span>`;
+}
+
+function updateGiroStatus(giro) {
+  const conf = giro.remessas.filter(r => r.estado==='confirmado').length;
+  const tot  = giro.remessas.length;
+  if (conf===tot)       giro.status = 'completo';
+  else if (conf>0 || giro.remessas.some(r=>r.estado==='removido')) giro.status = 'iniciado';
+  else giro.status = 'aguardando';
+}
+
+function updateStats() {
+  let ent=0, pend=0, tot=0;
+  for (const p of plans) {
+    const c = countItems(p);
+    const totP = c.ent + c.pend;
+    ent  += c.ent;
+    pend += c.pend;
+    tot  += totP + p.agrupamentos.reduce((s,a) => s + a.ofs.filter(o=>o.estado==='removido').length, 0)
+               + p.giros.reduce((s,g) => s + g.remessas.filter(r=>r.estado==='removido').length, 0);
+  }
+  document.getElementById('s-ent').textContent  = ent;
+  document.getElementById('s-pend').textContent = pend;
+  document.getElementById('s-tot').textContent  = ent + pend;
+}
+
+function resetAll() {
+  if (!confirm('Resetar todos os 4 planos?')) return;
+  plans = SLOTS.map(i => ({id:i, plano:'', injetora:'', tipo:'injetora', giros:[], agrupamentos:[]}));
+  renderAll();
+  toast('Dashboard resetado','w');
+}
+
+// ── TOAST ──
+function toast(msg, type='s') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── FILE READER ──
+function readFile(si, file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { toast('Envie um arquivo PDF','e'); return; }
+  const uz = document.getElementById('uz'+si);
+  const ut = document.getElementById('ut'+si);
+  if (uz) uz.className = 'upzone loading';
+  if (ut) ut.innerHTML = '<span class="spin"></span> Lendo PDF...';
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      await parsePdf(si, e.target.result, file.name);
+    } catch(err) {
+      const uz2 = document.getElementById('uz'+si);
+      const ut2 = document.getElementById('ut'+si);
+      if (uz2) uz2.className = 'upzone err';
+      if (ut2) ut2.innerHTML = '❌ ' + err.message;
+      toast('Erro: ' + err.message, 'e');
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── PDF PARSER — DETECTA TIPO AUTOMATICAMENTE ──
+async function parsePdf(si, arrayBuf, filename) {
+  if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js não carregado');
+
+  const loadTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf), disableWorker: true });
+  const pdf = await loadTask.promise;
+
+  // Extrai todo o texto da página 1 para detectar o tipo
+  const page1 = await pdf.getPage(1);
+  const tc1   = await page1.getTextContent();
+  const allText = tc1.items.map(i => i.str||'').join(' ').toLowerCase();
+
+  // Detecta tipo ESPECIAL: tem "agrupamento" ou "OF:" sem "injetora"
+  const isEspecial = (allText.includes('agrupamento') || allText.includes('of:'))
+                  && !allText.includes('injetora');
+
+  if (isEspecial) {
+    await parseEspecial(si, pdf, filename);
+  } else {
+    await parseInjetora(si, pdf, filename);
+  }
+}
+
+// ── PARSER INJETORA (522 / 622 / 922) ──
+async function parseInjetora(si, pdf, filename) {
+  let plano = '', injetora = '';
+  const RE_GIRO = /^\d{1,2}$/;
+  const RE_REM  = /^\d{4,7}$/;
+
+  const girosMap = {};
+  let curNum = null;
+  let curProduto = '';
+
+  for (let pn = 1; pn <= pdf.numPages; pn++) {
+    const page = await pdf.getPage(pn);
+    const tc   = await page.getTextContent();
+    const vp   = page.getViewport({ scale: 1 });
+
+    const items = [];
+    for (const it of tc.items) {
+      const s = (it.str || '').trim();
+      if (!s) continue;
+      items.push({ x: it.transform[4], top: vp.height - it.transform[5], text: s });
+    }
+    items.sort((a,b) => a.top - b.top || a.x - b.x);
+
+    const rows = [];
+    for (const it of items) {
+      const last = rows[rows.length - 1];
+      if (last && Math.abs(it.top - last.top) <= 3) {
+        last.items.push(it);
+        last.top = (last.top + it.top) / 2;
+      } else {
+        rows.push({ top: it.top, items: [it] });
+      }
+    }
+
+    if (pn === 1) {
+      for (let i = 0; i < Math.min(3, rows.length); i++) {
+        const txt = rows[i].items.map(it => it.text).join(' ');
+        if (txt.toLowerCase().includes('planejamento')) plano = txt.replace(/\s+/g,' ').trim();
+        if (txt.toLowerCase().includes('injetora')) {
+          injetora = txt.replace(/injetora\s*:?\s*/i,'').trim();
+        }
+      }
+    }
+
+    for (const row of rows) {
+      const its = row.items.slice().sort((a,b) => a.x - b.x);
+
+      if (its.length >= 2) {
+        const it0 = its[0], it1 = its[1];
+        if (RE_GIRO.test(it0.text) && it0.x < 40 &&
+            it1.x > 90 && it1.x < 150 &&
+            /^[A-ZÀ-Ú]+$/.test(it1.text)) {
+          const num = parseInt(it0.text);
+          if (!girosMap[num]) girosMap[num] = { num, remessas: [] };
+          curNum = num;
+          curProduto = it1.text;
+          continue;
+        }
+      }
+
+      if (curNum === null) continue;
+
+      for (const it of its) {
+        if (it.x >= 60 && it.x <= 95 && RE_REM.test(it.text)) {
+          const cod = it.text;
+          let modelo = '-';
+          for (const it2 of its) {
+            if (it2.x >= 100 && it2.x <= 235) { modelo = it2.text; break; }
+          }
+          const giro = girosMap[curNum];
+          const dup  = giro.remessas.find(r => r.codigo === cod && r.produto === curProduto);
+          if (!dup) giro.remessas.push({ codigo: cod, modelo, produto: curProduto });
+          break;
+        }
+      }
+    }
+  }
+
+  if (!plano) plano = filename.replace(/\.pdf$/i,'');
+
+  const girosArr = Object.values(girosMap)
+    .filter(g => g.remessas.length > 0)
+    .sort((a,b) => a.num - b.num);
+
+  if (!girosArr.length) throw new Error('Nenhum giro encontrado no PDF.');
+
+  const p        = plans[si];
+  p.plano        = plano;
+  p.injetora     = injetora;
+  p.tipo         = 'injetora';
+  p.agrupamentos = [];
+  p.giros        = girosArr.map(g => ({
+    num      : g.num,
+    status   : 'aguardando',
+    remessas : g.remessas.map(r => ({
+      codigo : String(r.codigo || ''),
+      modelo : String(r.modelo || '—'),
+      produto: String(r.produto || ''),
+      estado : 'normal'
+    }))
+  }));
+
+  rerenderPanel(si);
+  updateStats();
+  toast(`✓ ${p.plano}: ${p.giros.length} giros`, 's');
+}
+
+// ── PARSER ESPECIAL (acabados) ──
+async function parseEspecial(si, pdf, filename) {
+  // Estrutura do PDF Especial:
+  //   Cabeçalho: "Planejamento: ESPECIAL - SAFETLINE - 149"  "Data: ..."  "Qtd. total: N"
+  //   "Agrupamento: X00XFR-MF/BR"
+  //   "OF: 304515"   "Modelo: X00XFR-MF/BR"   "Grade: 36"   "Qtd: 20"
+  //   "OF: 304516"   ...
+  //   "Qtd. total do agrupamento ... DESCRIÇÃO  N"
+
+  let plano = '';
+  const agrupamentosMap = {};
+  let curAgrupo = null;
+  let agIdx = 0;
+
+  for (let pn = 1; pn <= pdf.numPages; pn++) {
+    const page = await pdf.getPage(pn);
+    const tc   = await page.getTextContent();
+    const vp   = page.getViewport({ scale: 1 });
+
+    const items = [];
+    for (const it of tc.items) {
+      const s = (it.str || '').trim();
+      if (!s) continue;
+      items.push({ x: it.transform[4], top: vp.height - it.transform[5], text: s });
+    }
+    items.sort((a,b) => a.top - b.top || a.x - b.x);
+
+    // Agrupa em linhas (tolerância 4px)
+    const rows = [];
+    for (const it of items) {
+      const last = rows[rows.length - 1];
+      if (last && Math.abs(it.top - last.top) <= 4) {
+        last.items.push(it);
+        last.top = (last.top + it.top) / 2;
+      } else {
+        rows.push({ top: it.top, items: [it] });
+      }
+    }
+
+    // Junta o texto de cada linha para busca
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
+      const texts = row.items.sort((a,b)=>a.x-b.x).map(i=>i.text);
+      const line  = texts.join(' ');
+
+      // Plano
+      if (!plano && /planejamento/i.test(line)) {
+        const m = line.match(/ESPECIAL[^]*/i);
+        if (m) plano = m[0].replace(/\s+/g,' ').trim();
+        else plano = line.replace(/planejamento\s*:?\s*/i,'').trim();
+      }
+
+      // Agrupamento: "Agrupamento: X00XFR-MF/BR"
+      if (/agrupamento\s*:/i.test(line)) {
+        const m = line.match(/agrupamento\s*:\s*(\S+)/i);
+        if (m) {
+          curAgrupo = m[1].trim();
+          if (!agrupamentosMap[curAgrupo]) {
+            agrupamentosMap[curAgrupo] = { codigo: curAgrupo, descricao: '', qtdTotal: 0, idx: agIdx++, ofs: [] };
+          }
+        }
+        continue;
+      }
+
+      // Descrição do agrupamento (linha "Qtd. total do agrupamento X - DESCRICAO  N")
+      if (curAgrupo && /qtd\.\s*total do agrupamento/i.test(line)) {
+        const m = line.match(/agrupamento\s+\S+\s*[-–]\s*(.+?)\s+(\d+)\s*$/i);
+        if (m && agrupamentosMap[curAgrupo]) {
+          agrupamentosMap[curAgrupo].descricao = m[1].trim();
+          agrupamentosMap[curAgrupo].qtdTotal  = parseInt(m[2]) || 0;
+        }
+        continue;
+      }
+
+      // OF: pode vir em linhas separadas ou na mesma linha
+      // Padrão A: "OF: 304515" numa linha, depois "Modelo: ..." "Grade: ..." "Qtd: ..."
+      if (/^\s*OF\s*:/i.test(line) && curAgrupo) {
+        const mOf = line.match(/OF\s*:\s*(\d+)/i);
+        if (mOf) {
+          const ofNum = mOf[1];
+          // Tenta extrair Modelo, Grade, Qtd da mesma linha
+          let modelo = '', grade = '', qtd = 0;
+          const mMod = line.match(/Modelo\s*:\s*(\S+)/i);
+          const mGr  = line.match(/Grade\s*:\s*(\d+)/i);
+          const mQt  = line.match(/Qtd\s*:\s*(\d+)/i);
+          if (mMod) modelo = mMod[1];
+          if (mGr)  grade  = mGr[1];
+          if (mQt)  qtd    = parseInt(mQt[1]) || 0;
+
+          // Se não achou tudo na mesma linha, procura nas próximas 3 linhas
+          if (!modelo || !grade || !qtd) {
+            for (let k = 1; k <= 3 && ri+k < rows.length; k++) {
+              const nLine = rows[ri+k].items.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ');
+              if (!modelo) { const m2 = nLine.match(/Modelo\s*:\s*(\S+)/i); if(m2) modelo = m2[1]; }
+              if (!grade)  { const m2 = nLine.match(/Grade\s*:\s*(\d+)/i);  if(m2) grade  = m2[1]; }
+              if (!qtd)    { const m2 = nLine.match(/Qtd\s*:\s*(\d+)/i);    if(m2) qtd    = parseInt(m2[1]) || 0; }
+              if (modelo && grade && qtd) break;
+            }
+          }
+
+          const ag = agrupamentosMap[curAgrupo];
+          if (ag && !ag.ofs.find(o => o.of === ofNum)) {
+            ag.ofs.push({ of: ofNum, modelo: modelo||curAgrupo, grade: grade||'?', qtd, estado: 'normal' });
+          }
+        }
+        continue;
+      }
+
+      // Padrão B: linha com "Modelo: X" independente (sem OF no início)
+      // já coberto pelo look-ahead acima
+    }
+  }
+
+  if (!plano) plano = filename.replace(/\.pdf$/i,'');
+
+  const agArr = Object.values(agrupamentosMap).filter(a => a.ofs.length > 0);
+  if (!agArr.length) throw new Error('Nenhum agrupamento/OF encontrado no PDF Especial.');
+
+  const p        = plans[si];
+  p.plano        = plano;
+  p.injetora     = '';
+  p.tipo         = 'especial';
+  p.giros        = [];
+  p.agrupamentos = agArr;
+
+  rerenderPanel(si);
+  updateStats();
+  const totalOFs = agArr.reduce((s,a) => s+a.ofs.length, 0);
+  toast(`✓ ESPECIAL: ${agArr.length} agrup. / ${totalOFs} OFs`, 's');
+}
+</script>
+</body>
+</html>
