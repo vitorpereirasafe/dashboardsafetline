@@ -130,12 +130,21 @@ body::after{
   background:linear-gradient(90deg,var(--blue1),var(--blue2));
   border-bottom:1px solid #1e3a5a;flex-shrink:0;
 }
-.pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;}
+.pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;cursor:grab;padding:2px 5px;border-radius:4px;transition:background .15s;}
+.pslot:hover{background:rgba(255,255,255,.12);}
+.pslot:active{cursor:grabbing;}
 .pname{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.9);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pinj{font-size:1.35rem;font-weight:900;color:#fff;white-space:nowrap;letter-spacing:.04em;}
 .pstats{display:flex;gap:4px;font-size:.72rem;white-space:nowrap;}
 .ps-ok{color:var(--green);}
 .ps-pend{color:var(--yellow);}
+
+/* TROCA DE PLANOS (arrastar título) */
+.panel.plan-dragging{opacity:.4;}
+.phead.plan-drop-target{
+  outline:2px dashed #fff;outline-offset:-2px;
+  background:linear-gradient(90deg,var(--blue2),var(--blue3));
+}
 
 /* UPLOAD */
 .upzone{
@@ -654,6 +663,58 @@ function bindUpload(i) {
 }
 
 
+// ── ARRASTAR TÍTULO DO PLANO PARA TROCAR DE LUGAR (mantém todos os dados/cliques) ──
+let planDragSrc = null;
+
+function handlePlanDragStart(e, i) {
+  planDragSrc = i;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', String(i)); } catch(err) {}
+  const panel = document.getElementById('panel'+i);
+  if (panel) panel.classList.add('plan-dragging');
+}
+
+function handlePlanDragEnd() {
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('plan-dragging'));
+  document.querySelectorAll('.phead').forEach(el => el.classList.remove('plan-drop-target'));
+  planDragSrc = null;
+}
+
+function handlePlanDragOver(e, i) {
+  if (planDragSrc === null || planDragSrc === i) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const ph = document.getElementById('ph'+i);
+  if (ph) ph.classList.add('plan-drop-target');
+}
+
+function handlePlanDragLeave(e, i) {
+  const ph = document.getElementById('ph'+i);
+  if (ph) ph.classList.remove('plan-drop-target');
+}
+
+function handlePlanDrop(e, i) {
+  e.preventDefault();
+  const ph = document.getElementById('ph'+i);
+  if (ph) ph.classList.remove('plan-drop-target');
+  const from = planDragSrc;
+  planDragSrc = null;
+  if (from === null || from === i) return;
+  swapPlans(from, i);
+}
+
+// Troca o conteúdo completo (planejamento, giros, OFs e todos os cliques já dados)
+// entre dois espaços. Se o destino estiver vazio, isso funciona como "mover".
+function swapPlans(a, b) {
+  const tmp = plans[a];
+  plans[a] = plans[b];
+  plans[b] = tmp;
+  plans[a].id = a;
+  plans[b].id = b;
+  renderAll();
+  toast(`${LABELS[a]} ↔ ${LABELS[b]} trocados de lugar`, 's');
+}
+
 function panelHTML(i, opts={}) {
   const p = plans[i];
   let ent=0, pend=0;
@@ -665,8 +726,12 @@ function panelHTML(i, opts={}) {
   const ativos = p.giros.filter(g => g.status!=='completo' && g.remessas.some(r => r.estado!=='removido'));
   return `
 <div class="panel${p.plano?' loaded':''}" id="panel${i}">
-  <div class="phead">
-    <span class="pslot" style="color:${COLORS[i]}">${LABELS[i]}</span>
+  <div class="phead" id="ph${i}"
+       ondragover="handlePlanDragOver(event,${i})"
+       ondragleave="handlePlanDragLeave(event,${i})"
+       ondrop="handlePlanDrop(event,${i})">
+    <span class="pslot" style="color:${COLORS[i]}" draggable="true" title="Arraste para trocar este plano de lugar"
+          ondragstart="handlePlanDragStart(event,${i})" ondragend="handlePlanDragEnd(event)">${LABELS[i]}</span>
     <div class="divv" style="margin:0 7px;background:rgba(255,255,255,.2)"></div>
     <span class="pname">${p.plano||'—'}</span>
     ${p.injetora ? `<span class="pinj">Inj: ${p.injetora}</span>` : ''}
