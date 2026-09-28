@@ -95,11 +95,11 @@ body::after{
 .sync-status.saving{border-color:var(--yellow);color:var(--yellow);}
 .sync-status.offline{border-color:var(--red);color:#ff6683;}
 
-/* GRID 2x3: quatro planos no primeiro quadro de tela e dois abaixo */
+/* GRID 2x4: quatro planos no primeiro quadro de tela e quatro abaixo */
 #grid{
   display:grid;
   grid-template-columns:1fr 6px 1fr;
-  grid-template-rows:calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2);
+  grid-template-rows:calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2);
   flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
   scrollbar-color:var(--accent) var(--surface);
 }
@@ -107,7 +107,7 @@ body::after{
 #grid::-webkit-scrollbar-track{background:var(--surface);}
 #grid::-webkit-scrollbar-thumb{background:var(--accent);border-radius:5px;}
 .gutter{position:relative;background:transparent;z-index:2;}
-.gutter-col{cursor:col-resize;grid-row:1 / span 5;}
+.gutter-col{cursor:col-resize;grid-row:1 / span 7;}
 .gutter-row{cursor:row-resize;grid-column:1 / span 3;}
 .gutter::after{
   content:'';position:absolute;background:var(--border);
@@ -130,21 +130,12 @@ body::after{
   background:linear-gradient(90deg,var(--blue1),var(--blue2));
   border-bottom:1px solid #1e3a5a;flex-shrink:0;
 }
-.pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;cursor:grab;padding:2px 5px;border-radius:4px;transition:background .15s;}
-.pslot:hover{background:rgba(255,255,255,.12);}
-.pslot:active{cursor:grabbing;}
+.pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;}
 .pname{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.9);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pinj{font-size:1.35rem;font-weight:900;color:#fff;white-space:nowrap;letter-spacing:.04em;}
 .pstats{display:flex;gap:4px;font-size:.72rem;white-space:nowrap;}
 .ps-ok{color:var(--green);}
 .ps-pend{color:var(--yellow);}
-
-/* TROCA DE PLANOS (arrastar título) */
-.panel.plan-dragging{opacity:.4;}
-.phead.plan-drop-target{
-  outline:2px dashed #fff;outline-offset:-2px;
-  background:linear-gradient(90deg,var(--blue2),var(--blue3));
-}
 
 /* UPLOAD */
 .upzone{
@@ -320,7 +311,7 @@ body::after{
     <div style="display:flex;align-items:center;">
       <div class="brand">PCP</div>
       <div class="divv"></div>
-      <div class="subtext">Planejamento de Injeção — 6 planos simultâneos</div>
+      <div class="subtext">Planejamento de Injeção — 8 planos simultâneos</div>
       <div class="legend-wrap" aria-label="Manual das cores">
         <div class="legend-rows">
           <span class="legend-title">Cores</span>
@@ -374,9 +365,9 @@ body::after{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── CONFIG ──
-const SLOTS  = [0,1,2,3,4,5];
-const LABELS = ['Plano A','Plano B','Plano C','Plano D','Plano E','Plano F'];
-const COLORS = ['#4da6d6','#ce93d8','#ffd600','#00e676','#ff9100','#26c6da'];
+const SLOTS  = [0,1,2,3,4,5,6,7];
+const LABELS = ['Plano A','Plano B','Plano C','Plano D','Plano E','Plano F','Plano G','Plano H'];
+const COLORS = ['#4da6d6','#ce93d8','#ffd600','#00e676','#ff9100','#26c6da','#ab47bc','#ef5350'];
 const DBL_MS = 380;
 
 let plans = SLOTS.map(i => ({id:i, plano:'', injetora:'', giros:[]}));
@@ -480,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── RENDER ──
-let expandedView = false; // true = usuário pediu pra ver os 6 espaços mesmo com 1 ou 2 planos ativos
+let expandedView = false; // true = usuário pediu pra ver os 8 espaços mesmo com 1 ou 2 planos ativos
 
 function getActiveIdx() {
   return plans.map((p,i) => p.plano ? i : -1).filter(i => i !== -1);
@@ -489,7 +480,7 @@ function getActiveIdx() {
 // Decide o modo de exibição atual:
 //  'solo' -> 1 plano ativo, ocupa a tela toda
 //  'duo'  -> 2 planos ativos, dividem a tela toda (sem quadrantes vazios)
-//  'grid' -> 3+ planos ativos, ou usuário pediu explicitamente os 6 espaços
+//  'grid' -> 3+ planos ativos, ou usuário pediu explicitamente os 8 espaços
 function getLayoutMode(activeIdx) {
   if (activeIdx.length === 1 && !expandedView) return 'solo';
   if (activeIdx.length === 2 && !expandedView) return 'duo';
@@ -500,7 +491,7 @@ function renderAll() {
   const g = document.getElementById('grid');
   const activeIdx = getActiveIdx();
 
-  if (activeIdx.length === 0) expandedView = false; // nada ativo -> volta ao padrão de 6 espaços
+  if (activeIdx.length === 0) expandedView = false; // nada ativo -> volta ao padrão de 8 espaços
 
   const mode = getLayoutMode(activeIdx);
 
@@ -525,7 +516,7 @@ function renderAll() {
   } else {
     g.innerHTML = `
       <div style="grid-column:1;grid-row:1;display:flex;min-height:0;min-width:0;">${panelHTML(0)}</div>
-      <div class="gutter gutter-col" id="gutCol" style="grid-column:2;grid-row:1 / span 5;"></div>
+      <div class="gutter gutter-col" id="gutCol" style="grid-column:2;grid-row:1 / span 7;"></div>
       <div style="grid-column:3;grid-row:1;display:flex;min-height:0;min-width:0;">${panelHTML(1)}</div>
       <div class="gutter gutter-row" id="gutRow" style="grid-row:2;grid-column:1 / span 3;"></div>
       <div style="grid-column:1;grid-row:3;display:flex;min-height:0;min-width:0;">${panelHTML(2)}</div>
@@ -533,6 +524,9 @@ function renderAll() {
       <div class="gutter gutter-row" style="grid-row:4;grid-column:1 / span 3;"></div>
       <div style="grid-column:1;grid-row:5;display:flex;min-height:0;min-width:0;">${panelHTML(4)}</div>
       <div style="grid-column:3;grid-row:5;display:flex;min-height:0;min-width:0;">${panelHTML(5)}</div>
+      <div class="gutter gutter-row" style="grid-row:6;grid-column:1 / span 3;"></div>
+      <div style="grid-column:1;grid-row:7;display:flex;min-height:0;min-width:0;">${panelHTML(6)}</div>
+      <div style="grid-column:3;grid-row:7;display:flex;min-height:0;min-width:0;">${panelHTML(7)}</div>
     `;
   }
   SLOTS.forEach(i => bindUpload(i));
@@ -543,7 +537,7 @@ function renderAll() {
   bindDuoGutter();
 }
 
-// Botão "+ Inserir Planos": volta pra tela com os 6 espaços, mantendo os planos já em andamento
+// Botão "+ Inserir Planos": volta pra tela com os 8 espaços, mantendo os planos já em andamento
 function expandGrid() {
   expandedView = true;
   renderAll();
@@ -576,7 +570,7 @@ function bindGutters() {
       const usable = rect.height - 6;
       const topPx = Math.max(80, usable * pct / 100);
       const bottomPx = Math.max(80, usable - topPx);
-      grid.style.gridTemplateRows = `${topPx}px 6px ${bottomPx}px 6px calc((100% - 6px)/2)`;
+      grid.style.gridTemplateRows = `${topPx}px 6px ${bottomPx}px 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2)`;
     }
   }
   function onUp() {
@@ -606,7 +600,7 @@ function bindGutters() {
   document.addEventListener('touchend', onUp);
 
   gutCol.addEventListener('dblclick', () => grid.style.gridTemplateColumns = '1fr 6px 1fr');
-  gutRow.addEventListener('dblclick', () => grid.style.gridTemplateRows = 'calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2)');
+  gutRow.addEventListener('dblclick', () => grid.style.gridTemplateRows = 'calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2) 6px calc((100% - 6px)/2)');
 }
 
 // Arrasta o divisor entre os 2 painéis no modo "duo" (2 planos dividindo a tela toda)
@@ -663,58 +657,6 @@ function bindUpload(i) {
 }
 
 
-// ── ARRASTAR TÍTULO DO PLANO PARA TROCAR DE LUGAR (mantém todos os dados/cliques) ──
-let planDragSrc = null;
-
-function handlePlanDragStart(e, i) {
-  planDragSrc = i;
-  e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', String(i)); } catch(err) {}
-  const panel = document.getElementById('panel'+i);
-  if (panel) panel.classList.add('plan-dragging');
-}
-
-function handlePlanDragEnd() {
-  document.querySelectorAll('.panel').forEach(el => el.classList.remove('plan-dragging'));
-  document.querySelectorAll('.phead').forEach(el => el.classList.remove('plan-drop-target'));
-  planDragSrc = null;
-}
-
-function handlePlanDragOver(e, i) {
-  if (planDragSrc === null || planDragSrc === i) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const ph = document.getElementById('ph'+i);
-  if (ph) ph.classList.add('plan-drop-target');
-}
-
-function handlePlanDragLeave(e, i) {
-  const ph = document.getElementById('ph'+i);
-  if (ph) ph.classList.remove('plan-drop-target');
-}
-
-function handlePlanDrop(e, i) {
-  e.preventDefault();
-  const ph = document.getElementById('ph'+i);
-  if (ph) ph.classList.remove('plan-drop-target');
-  const from = planDragSrc;
-  planDragSrc = null;
-  if (from === null || from === i) return;
-  swapPlans(from, i);
-}
-
-// Troca o conteúdo completo (planejamento, giros, OFs e todos os cliques já dados)
-// entre dois espaços. Se o destino estiver vazio, isso funciona como "mover".
-function swapPlans(a, b) {
-  const tmp = plans[a];
-  plans[a] = plans[b];
-  plans[b] = tmp;
-  plans[a].id = a;
-  plans[b].id = b;
-  renderAll();
-  toast(`${LABELS[a]} ↔ ${LABELS[b]} trocados de lugar`, 's');
-}
-
 function panelHTML(i, opts={}) {
   const p = plans[i];
   let ent=0, pend=0;
@@ -726,12 +668,8 @@ function panelHTML(i, opts={}) {
   const ativos = p.giros.filter(g => g.status!=='completo' && g.remessas.some(r => r.estado!=='removido'));
   return `
 <div class="panel${p.plano?' loaded':''}" id="panel${i}">
-  <div class="phead" id="ph${i}"
-       ondragover="handlePlanDragOver(event,${i})"
-       ondragleave="handlePlanDragLeave(event,${i})"
-       ondrop="handlePlanDrop(event,${i})">
-    <span class="pslot" style="color:${COLORS[i]}" draggable="true" title="Arraste para trocar este plano de lugar"
-          ondragstart="handlePlanDragStart(event,${i})" ondragend="handlePlanDragEnd(event)">${LABELS[i]}</span>
+  <div class="phead">
+    <span class="pslot" style="color:${COLORS[i]}">${LABELS[i]}</span>
     <div class="divv" style="margin:0 7px;background:rgba(255,255,255,.2)"></div>
     <span class="pname">${p.plano||'—'}</span>
     ${p.injetora ? `<span class="pinj">Inj: ${p.injetora}</span>` : ''}
@@ -1116,7 +1054,7 @@ function updateStats() {
 }
 
 function resetAll() {
-  if (!confirm('Resetar todos os 6 planos?')) return;
+  if (!confirm('Resetar todos os 8 planos?')) return;
   plans = SLOTS.map(i => ({id:i, plano:'', injetora:'', giros:[]}));
   expandedView = false;
   renderAll();
@@ -1136,7 +1074,7 @@ let reconnectTimer = null;
 
 function liveSnapshot() {
   return {
-    schema: 1,
+    schema: 2,
     savedAt: Date.now(),
     plans,
     completedLog,
@@ -1156,12 +1094,22 @@ function cacheLiveState() {
 }
 
 function validLiveState(value) {
-  return value && Array.isArray(value.plans) && value.plans.length === SLOTS.length
+  return value && Array.isArray(value.plans) && [6, SLOTS.length].includes(value.plans.length)
     && Array.isArray(value.completedLog) && Array.isArray(value.completedPlansLog);
+}
+
+function normalizeLiveState(state) {
+  const normalized = {...state, schema: 2, plans: state.plans.map((plan, id) => ({...plan, id}))};
+  while (normalized.plans.length < SLOTS.length) {
+    const id = normalized.plans.length;
+    normalized.plans.push({id, plano:'', injetora:'', giros:[]});
+  }
+  return normalized;
 }
 
 function applyLiveState(state, revision) {
   if (!validLiveState(state)) return false;
+  state = normalizeLiveState(state);
   cloudMute = true;
   plans = state.plans;
   completedLog = state.completedLog;

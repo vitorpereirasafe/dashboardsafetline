@@ -7,6 +7,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const app = express();
 const server = http.createServer(app);
 const port = Number(process.env.PORT || 3000);
+const PLAN_SLOTS = 8;
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL não foi configurada. Use o Blueprint do Render.');
@@ -20,12 +21,30 @@ const pool = new Pool({
 });
 
 const emptyState = () => ({
-  schema: 1,
+  schema: 2,
   savedAt: Date.now(),
-  plans: Array.from({ length: 6 }, (_, id) => ({ id, plano: '', injetora: '', giros: [] })),
+  plans: Array.from({ length: PLAN_SLOTS }, (_, id) => ({ id, plano: '', injetora: '', giros: [] })),
   completedLog: [],
   completedPlansLog: []
 });
+
+// Preserva os seis planos já existentes e acrescenta G/H vazios.
+// Também aceita por segurança um clique enviado por uma aba antiga durante o deploy.
+function normalizeState(state) {
+  if (!state || typeof state !== 'object' || !Array.isArray(state.plans)) return null;
+  if (![6, PLAN_SLOTS].includes(state.plans.length)) return null;
+  if (!Array.isArray(state.completedLog) || !Array.isArray(state.completedPlansLog)) return null;
+  if (!state.plans.every((plan, index) =>
+    plan && typeof plan === 'object' && Number(plan.id) === index && Array.isArray(plan.giros)
+  )) return null;
+
+  const plans = state.plans.map((plan, id) => ({ ...plan, id }));
+  while (plans.length < PLAN_SLOTS) {
+    const id = plans.length;
+    plans.push({ id, plano: '', injetora: '', giros: [] });
+  }
+  return { ...state, schema: 2, plans };
+}
 
 async function initializeDatabase() {
   await pool.query(`
@@ -42,15 +61,23 @@ async function initializeDatabase() {
      ON CONFLICT (id) DO NOTHING`,
     [JSON.stringify(emptyState())]
   );
+
+  // Migração idempotente do estado salvo: 6 slots -> 8 slots, sem apagar cliques.
+  const current = await pool.query('SELECT payload FROM dashboard_state WHERE id = 1');
+  const stored = current.rows[0] && current.rows[0].payload;
+  const normalized = normalizeState(stored);
+  if (normalized && stored.plans.length !== PLAN_SLOTS) {
+    await pool.query(
+      `UPDATE dashboard_state
+       SET payload = $1::jsonb, revision = revision + 1, updated_at = NOW()
+       WHERE id = 1`,
+      [JSON.stringify(normalized)]
+    );
+  }
 }
 
 function isValidState(state) {
-  if (!state || typeof state !== 'object') return false;
-  if (!Array.isArray(state.plans) || state.plans.length !== 6) return false;
-  if (!Array.isArray(state.completedLog) || !Array.isArray(state.completedPlansLog)) return false;
-  return state.plans.every((plan, index) =>
-    plan && typeof plan === 'object' && Number(plan.id) === index && Array.isArray(plan.giros)
-  );
+  return Boolean(normalizeState(state));
 }
 
 app.disable('x-powered-by');
@@ -78,9 +105,17 @@ app.get('/api/state', async (_req, res, next) => {
 
 async function saveStateHandler(req, res, next) {
   try {
-    const state = req.body && req.body.state;
-    if (!isValidState(state)) {
+    const incomingState = req.body && req.body.state;
+    if (!isValidState(incomingState)) {
       return res.status(400).json({ error: 'Estado do dashboard inválido.' });
+    }
+    const state = normalizeState(incomingState);
+    // Se uma aba antiga (6 slots) salvar durante a atualização, ela não pode
+    // apagar os planos G/H que já tenham sido preenchidos na versão nova.
+    if (incomingState.plans.length === 6) {
+      const current = await pool.query('SELECT payload FROM dashboard_state WHERE id = 1');
+      const currentState = normalizeState(current.rows[0] && current.rows[0].payload);
+      if (currentState) state.plans.splice(6, 2, ...currentState.plans.slice(6, 8));
     }
     state.savedAt = Date.now();
     const result = await pool.query(

@@ -2,26 +2,26 @@
 
 Dashboard que lê PDFs de planejamento de injeção (PCP) diretamente no navegador
 usando PDF.js, salva o estado em PostgreSQL no Render e organiza
-as remessas em giros, com até 6 planos simultâneos em duas colunas. Os quatro
-primeiros permanecem na tela principal e os planos E e F ficam logo abaixo,
-acessíveis pela rolagem vertical.
+as remessas em giros, com até 8 planos simultâneos em duas colunas. Os quatro
+primeiros permanecem na tela principal; E/F e G/H ficam abaixo, acessíveis
+pela rolagem vertical.
 
 ## Como funciona
 
-- Arraste (ou clique para selecionar) um PDF em qualquer um dos 6 espaços.
+- Arraste (ou clique para selecionar) um PDF em qualquer um dos 8 espaços.
 - O parser identifica os giros (ex: "1 FALCON", "2 ANDALUZ") e as remessas
   (códigos numéricos de 4 a 7 dígitos) e seus respectivos modelos, usando a
   posição das colunas no PDF — não depende de texto fixo, então funciona com
   qualquer nome de grupo (FALCON, ANDALUZ, etc).
 - Clique **duas vezes** numa remessa para marcar como **entregue** (fica verde).
 - Clique duas vezes novamente numa remessa já entregue para **removê-la** da lista.
-- Botão **Reset** no topo limpa os 6 planos.
+- Botão **Reset** no topo limpa os 8 planos.
 - Arraste o divisor vertical para ajustar a largura das duas colunas; dê dois
   cliques nele para voltar ao tamanho padrão.
 
 ## O que fica salvo
 
-- Os 6 planejamentos, giros, OFs e situação de cada OF.
+- Os 8 planejamentos, giros, OFs e situação de cada OF.
 - Cliques vermelho, amarelo, confirmado e removido.
 - Histórico de giros e planejamentos concluídos.
 - Uma cópia local instantânea no navegador para suportar queda momentânea da internet.
@@ -29,22 +29,19 @@ acessíveis pela rolagem vertical.
 
 O indicador no topo mostra `Sincronizado`, `Salvando` ou `Offline`.
 
-## Publicar no Render com PostgreSQL
+## Atualizar no GitHub e no Render
 
-1. Suba este repositório para o GitHub (veja abaixo).
-2. No Render, abra **New > Blueprint**.
-3. Conecte o repositório e selecione o arquivo `render.yaml` da raiz.
-4. Confira os dois recursos que serão criados: `dashboard-pcp` e
-   `dashboard-pcp-db`.
-5. Clique em **Apply** e aguarde o serviço ficar `Live`.
+1. Substitua os arquivos do repositório pelos arquivos deste pacote.
+2. Confirme o commit no GitHub.
+3. O Web Service existente fará o deploy automático; se necessário, use
+   **Manual Deploy > Deploy latest commit** no Render.
+4. Aguarde o serviço ficar `Live` e atualize a página com `Ctrl + F5`.
 
-Não crie como Static Site. A versão sincronizada precisa ser um **Web Service**.
-O próprio Blueprint injeta a conexão privada do PostgreSQL no servidor; não é
-necessário copiar senha ou URL do banco.
+Não crie outro banco. O `render.yaml` continua usando o PostgreSQL existente
+`safetline-os-db`, na tabela exclusiva `dashboard_state`.
 
-Se já existir um Static Site antigo com o nome `dashboard-pcp`, exclua-o ou
-renomeie-o antes de aplicar o Blueprint, pois o tipo de serviço não pode ser
-convertido de Static Site para Web Service.
+Ao iniciar, o servidor converte automaticamente o estado salvo de 6 para 8
+planos: A–F e todos os cliques permanecem intactos; G e H são adicionados vazios.
 
 ## Subir para o GitHub
 
@@ -62,12 +59,8 @@ git push -u origin main
 - `index.html` — interface completa, parser de PDF e cliente de sincronização.
 - `server.js` — API, persistência PostgreSQL e WebSocket em tempo real.
 - `package.json` / `package-lock.json` — dependências fixadas do servidor.
-- `render.yaml` — cria o Web Service e o PostgreSQL automaticamente.
+- `render.yaml` — mantém o Web Service conectado ao banco existente.
 
 ## Observação sobre o plano gratuito
 
-O projeto vem configurado com os planos gratuitos para facilitar o primeiro
-teste. O serviço pode entrar em repouso depois de 15 minutos sem acessos e levar
-alguns instantes para acordar. O PostgreSQL gratuito expira 30 dias após a
-criação e não oferece backups. Para uso contínuo na fábrica, faça o teste e
-depois altere os planos dos dois recursos no painel do Render antes desse prazo.
+O serviço gratuito pode entrar em repouso e levar alguns instantes para acordar.
