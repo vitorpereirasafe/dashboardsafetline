@@ -124,12 +124,20 @@ body::after{
   overflow:hidden;min-height:0;flex:1;min-width:0;
 }
 .panel.loaded{border-color:rgba(77,166,214,.35);}
+.panel.plan-drag-source{opacity:.55;border-color:var(--yellow);}
+.panel.plan-drop-target{border-color:var(--green);box-shadow:inset 0 0 0 2px rgba(0,230,118,.35);}
 
 .phead{
   display:flex;align-items:center;gap:7px;padding:5px 10px;
   background:linear-gradient(90deg,var(--blue1),var(--blue2));
   border-bottom:1px solid #1e3a5a;flex-shrink:0;
 }
+.plan-drag-handle{
+  color:rgba(255,255,255,.6);font-size:.86rem;line-height:1;cursor:grab;
+  user-select:none;padding-right:2px;
+}
+.phead[draggable="true"]{cursor:grab;}
+.phead[draggable="true"]:active,.phead[draggable="true"]:active .plan-drag-handle{cursor:grabbing;}
 .pslot{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;}
 .pname{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.9);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pinj{font-size:1.35rem;font-weight:900;color:#fff;white-space:nowrap;letter-spacing:.04em;}
@@ -530,6 +538,7 @@ function renderAll() {
     `;
   }
   SLOTS.forEach(i => bindUpload(i));
+  bindPlanReorder();
   updateStats();
   updateGirosHojeChip();
   updatePlanosHojeChip();
@@ -656,6 +665,77 @@ function bindUpload(i) {
   if (inp) inp.addEventListener('change', e => { const f = e.target.files[0]; if (f) readFile(i, f); });
 }
 
+// ── TROCA DE POSIÇÃO DOS PLANOS ──
+// Arraste o cabeçalho de um plano e solte sobre qualquer outro espaço.
+let draggedPlanIndex = null;
+
+function clearPlanDragClasses() {
+  document.querySelectorAll('.panel').forEach(panel => {
+    panel.classList.remove('plan-drag-source', 'plan-drop-target');
+  });
+}
+
+function swapPlans(from, to) {
+  if (from === to || !plans[from] || !plans[to]) return;
+  [plans[from], plans[to]] = [plans[to], plans[from]];
+  plans.forEach((plan, index) => { plan.id = index; });
+  hoverTile = null;
+  expandedView = true;
+  renderAll();
+  toast(`${LABELS[from]} e ${LABELS[to]} trocaram de lugar`, 's');
+}
+
+function bindPlanReorder() {
+  SLOTS.forEach(i => {
+    const panel = document.getElementById('panel' + i);
+    const head = panel && panel.querySelector('.phead');
+    if (!panel || !head) return;
+
+    head.draggable = true;
+    head.title = 'Arraste para trocar este plano de posição';
+
+    head.addEventListener('dragstart', e => {
+      if (e.target.closest('button')) {
+        e.preventDefault();
+        return;
+      }
+      draggedPlanIndex = i;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      requestAnimationFrame(() => panel.classList.add('plan-drag-source'));
+    });
+
+    panel.addEventListener('dragover', e => {
+      if (draggedPlanIndex === null || draggedPlanIndex === i) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.panel.plan-drop-target').forEach(el => {
+        if (el !== panel) el.classList.remove('plan-drop-target');
+      });
+      panel.classList.add('plan-drop-target');
+    });
+
+    panel.addEventListener('dragleave', e => {
+      if (!panel.contains(e.relatedTarget)) panel.classList.remove('plan-drop-target');
+    });
+
+    panel.addEventListener('drop', e => {
+      if (draggedPlanIndex === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const from = draggedPlanIndex;
+      draggedPlanIndex = null;
+      clearPlanDragClasses();
+      swapPlans(from, i);
+    });
+
+    head.addEventListener('dragend', () => {
+      draggedPlanIndex = null;
+      clearPlanDragClasses();
+    });
+  });
+}
+
 
 function panelHTML(i, opts={}) {
   const p = plans[i];
@@ -669,6 +749,7 @@ function panelHTML(i, opts={}) {
   return `
 <div class="panel${p.plano?' loaded':''}" id="panel${i}">
   <div class="phead">
+    <span class="plan-drag-handle" aria-hidden="true">⠿</span>
     <span class="pslot" style="color:${COLORS[i]}">${LABELS[i]}</span>
     <div class="divv" style="margin:0 7px;background:rgba(255,255,255,.2)"></div>
     <span class="pname">${p.plano||'—'}</span>

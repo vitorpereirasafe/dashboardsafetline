@@ -18,6 +18,8 @@ pela rolagem vertical.
 - Botão **Reset** no topo limpa os 8 planos.
 - Arraste o divisor vertical para ajustar a largura das duas colunas; dê dois
   cliques nele para voltar ao tamanho padrão.
+- Arraste o cabeçalho de qualquer plano e solte sobre outro espaço para trocar
+  os dois planejamentos de posição, levando junto OFs, cliques e estados.
 
 ## O que fica salvo
 
