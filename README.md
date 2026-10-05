@@ -13,9 +13,12 @@ pela rolagem vertical.
   (códigos numéricos de 4 a 7 dígitos) e seus respectivos modelos, usando a
   posição das colunas no PDF — não depende de texto fixo, então funciona com
   qualquer nome de grupo (FALCON, ANDALUZ, etc).
-- Clique **duas vezes** numa remessa para marcar como **entregue** (fica verde).
-- Clique duas vezes novamente numa remessa já entregue para **removê-la** da lista.
-- Botão **Reset** no topo limpa os 8 planos.
+- Cada par de cliques avança a OF: normal → vermelho (intermediário entregou)
+  → laranja (montagem iniciada) → verde (OF entregue).
+- Com o mouse sobre uma OF, pressione **Enter** para removê-la diretamente.
+- O tópico **Como funcionam os cliques** no menu explica os comandos na própria tela.
+- O botão **Reset** limpa os 8 planos somente após digitar a senha `1111` e
+  confirmar novamente a exclusão.
 - Arraste o divisor vertical para ajustar a largura das duas colunas; dê dois
   cliques nele para voltar ao tamanho padrão.
 - Arraste o cabeçalho de qualquer plano e solte sobre outro espaço para trocar
@@ -41,8 +44,9 @@ O indicador no topo mostra `Sincronizado`, `Salvando` ou `Offline`.
 
 - Exibe o horário da última sincronização ao lado do status.
 - Mantém visíveis somente Entregues, Pendentes, Total e Resumo.
-- Reúne em **☰ Ações**: inserir planejamento, Histórico Excel, versões
-  anteriores, pasta automática, restaurar tamanho dos painéis e Reset.
+- Reúne em **☰ Ações**: inserir planejamento, regras dos cliques, Histórico
+  Excel, versões anteriores, pasta automática, restaurar tamanho dos painéis
+  e Reset protegido por senha e confirmação.
 - Mostra a quantidade de versões disponíveis, até o limite de 20.
 - Adapta automaticamente os textos e cartões em telas menores.
 

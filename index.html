@@ -375,6 +375,12 @@ body::after{
 .version-time{font-size:.67rem;color:var(--accent);margin-top:2px;}
 .btn-restore{border:1px solid rgba(0,230,118,.45);border-radius:5px;padding:4px 8px;background:rgba(0,230,118,.1);color:var(--green);font-size:.68rem;font-weight:800;cursor:pointer;}
 .btn-restore:hover{background:var(--green);color:#063;}
+.rules-list{display:flex;flex-direction:column;gap:8px;}
+.rule-row{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid rgba(77,166,214,.2);border-radius:7px;background:rgba(77,166,214,.06);}
+.rule-step{display:flex;align-items:center;justify-content:center;flex:0 0 25px;height:25px;border-radius:50%;background:var(--blue2);color:#fff;font-size:.72rem;font-weight:800;}
+.rule-text{font-size:.79rem;color:#d6e8f5;line-height:1.25;}
+.rule-detail{display:block;margin-top:2px;color:#8fb1c8;font-size:.68rem;}
+.rules-note{margin-top:10px;padding:8px 10px;border-left:3px solid var(--yellow);background:rgba(255,214,0,.07);color:#bcd0de;font-size:.7rem;line-height:1.35;}
 </style>
 </head>
 <body>
@@ -416,6 +422,7 @@ body::after{
         <button class="btn-actions" id="btnActions" onclick="toggleActionsMenu(event)">☰ Ações</button>
         <div class="actions-menu" id="actionsMenu">
           <button class="action-item" onclick="runMenuAction(expandGrid)"><span>＋ Inserir planejamento</span></button>
+          <button class="action-item" onclick="runMenuAction(openClickRulesModal)"><span>ⓘ Como funcionam os cliques</span></button>
           <button class="action-item" onclick="runMenuAction(downloadHistoricoExcel)"><span>⬇ Histórico Excel</span></button>
           <button class="action-item" onclick="runMenuAction(openVersionsModal)"><span>↶ Versões anteriores</span><span class="version-badge" id="versionCount">0</span></button>
           <button class="action-item" id="btnFolder" onclick="runMenuAction(chooseHistoryFolder)" title="Escolha uma pasta para atualizar o Excel automaticamente"><span>🔗 Ativar pasta automática</span></button>
@@ -448,6 +455,26 @@ body::after{
     </div>
     <div class="modal-body" id="versionsModalBody">
       <div class="modal-empty">Carregando versões...</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clickRulesModalOverlay" onclick="closeClickRulesModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span>ⓘ Como funcionam os cliques</span>
+      <button class="modal-close" onclick="closeClickRulesModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="rules-list">
+        <div class="rule-row"><span class="rule-step">1</span><div class="rule-text"><strong>2 cliques na OF</strong> → vermelho<span class="rule-detail">Intermediário entregou.</span></div></div>
+        <div class="rule-row"><span class="rule-step">2</span><div class="rule-text"><strong>Mais 2 cliques</strong> → laranja<span class="rule-detail">Montagem iniciada.</span></div></div>
+        <div class="rule-row"><span class="rule-step">3</span><div class="rule-text"><strong>Mais 2 cliques</strong> → verde<span class="rule-detail">OF entregue e concluída.</span></div></div>
+        <div class="rule-row"><span class="rule-step">↵</span><div class="rule-text"><strong>Mouse sobre a OF + Enter</strong><span class="rule-detail">Remove a OF diretamente.</span></div></div>
+        <div class="rule-row"><span class="rule-step">↕</span><div class="rule-text"><strong>Arraste o cabeçalho do plano</strong><span class="rule-detail">Troca o planejamento de posição sem perder seus cliques.</span></div></div>
+        <div class="rule-row"><span class="rule-step">↶</span><div class="rule-text"><strong>Versões anteriores</strong><span class="rule-detail">Permite desfazer e restaurar uma das últimas 20 ações.</span></div></div>
+      </div>
+      <div class="rules-note">Para fechar apenas um planejamento, use o pequeno <strong>×</strong> no cabeçalho. Para apagar todo o dashboard, o Reset exige senha e confirmação.</div>
     </div>
   </div>
 </div>
@@ -1280,7 +1307,14 @@ function updateStats() {
 }
 
 function resetAll() {
-  if (!confirm('Resetar todos os 8 planos?')) return;
+  const password = prompt('Digite a senha para resetar o dashboard:');
+  if (password === null) return;
+  if (password !== '1111') {
+    alert('Senha incorreta. O dashboard não foi resetado.');
+    toast('Senha incorreta — reset cancelado','e');
+    return;
+  }
+  if (!confirm('Senha correta. Tem certeza que deseja resetar todos os 8 planos?\n\nEsta ação apagará os planejamentos atuais.')) return;
   markCloudAction('Reset geral dos 8 planos');
   plans = SLOTS.map(i => ({id:i, plano:'', injetora:'', giros:[]}));
   expandedView = false;
@@ -1510,6 +1544,14 @@ async function openVersionsModal() {
 
 function closeVersionsModal() {
   document.getElementById('versionsModalOverlay').classList.remove('show');
+}
+
+function openClickRulesModal() {
+  document.getElementById('clickRulesModalOverlay').classList.add('show');
+}
+
+function closeClickRulesModal() {
+  document.getElementById('clickRulesModalOverlay').classList.remove('show');
 }
 
 async function restoreVersion(id) {
