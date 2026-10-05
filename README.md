@@ -20,6 +20,12 @@ pela rolagem vertical.
   cliques nele para voltar ao tamanho padrão.
 - Arraste o cabeçalho de qualquer plano e solte sobre outro espaço para trocar
   os dois planejamentos de posição, levando junto OFs, cliques e estados.
+- Use o pequeno **×** no cabeçalho para fechar apenas aquele planejamento; o
+  sistema pede confirmação mostrando o nome antes de excluir.
+- O menu **Versões** permite restaurar uma das últimas 20 alterações, sempre
+  confirmando a ação e exibindo a data e o horário registrados.
+- Com a página aberta, às **23:59** o histórico diário é baixado automaticamente
+  em Excel, incluindo uma fotografia do estado atual de todas as OFs.
 
 ## O que fica salvo
 
@@ -30,6 +36,15 @@ pela rolagem vertical.
 - Atualizações ao vivo nos demais computadores com o dashboard aberto.
 
 O indicador no topo mostra `Sincronizado`, `Salvando` ou `Offline`.
+
+## Menu superior
+
+- Exibe o horário da última sincronização ao lado do status.
+- Mantém visíveis somente Entregues, Pendentes, Total e Resumo.
+- Reúne em **☰ Ações**: inserir planejamento, Histórico Excel, versões
+  anteriores, pasta automática, restaurar tamanho dos painéis e Reset.
+- Mostra a quantidade de versões disponíveis, até o limite de 20.
+- Adapta automaticamente os textos e cartões em telas menores.
 
 ## Atualizar no GitHub e no Render
 

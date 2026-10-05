@@ -55,6 +55,19 @@ async function initializeDatabase() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS dashboard_state_history (
+      id BIGSERIAL PRIMARY KEY,
+      payload JSONB NOT NULL,
+      source_revision BIGINT NOT NULL,
+      action_label TEXT NOT NULL DEFAULT 'Alteração no dashboard',
+      action_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_dashboard_state_history_action_at
+    ON dashboard_state_history (action_at DESC)
+  `);
   await pool.query(
     `INSERT INTO dashboard_state (id, payload, revision)
      VALUES (1, $1::jsonb, 0)
@@ -103,28 +116,65 @@ app.get('/api/state', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/history', async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, source_revision, action_label, action_at
+       FROM dashboard_state_history
+       ORDER BY id DESC
+       LIMIT 20`
+    );
+    res.set('Cache-Control', 'no-store');
+    res.json({ versions: result.rows.map(row => ({
+      id: Number(row.id),
+      revision: Number(row.source_revision),
+      action: row.action_label,
+      actionAt: row.action_at
+    })) });
+  } catch (error) { next(error); }
+});
+
 async function saveStateHandler(req, res, next) {
+  const client = await pool.connect();
   try {
     const incomingState = req.body && req.body.state;
     if (!isValidState(incomingState)) {
       return res.status(400).json({ error: 'Estado do dashboard inválido.' });
     }
     const state = normalizeState(incomingState);
+    const action = String((req.body && req.body.action) || 'Alteração no dashboard').slice(0, 240);
+    await client.query('BEGIN');
+    const locked = await client.query(
+      'SELECT payload, revision FROM dashboard_state WHERE id = 1 FOR UPDATE'
+    );
+    const currentRow = locked.rows[0];
     // Se uma aba antiga (6 slots) salvar durante a atualização, ela não pode
     // apagar os planos G/H que já tenham sido preenchidos na versão nova.
     if (incomingState.plans.length === 6) {
-      const current = await pool.query('SELECT payload FROM dashboard_state WHERE id = 1');
-      const currentState = normalizeState(current.rows[0] && current.rows[0].payload);
+      const currentState = normalizeState(currentRow && currentRow.payload);
       if (currentState) state.plans.splice(6, 2, ...currentState.plans.slice(6, 8));
     }
     state.savedAt = Date.now();
-    const result = await pool.query(
+    await client.query(
+      `INSERT INTO dashboard_state_history
+       (payload, source_revision, action_label, action_at)
+       VALUES ($1::jsonb, $2, $3, NOW())`,
+      [JSON.stringify(currentRow.payload), currentRow.revision, action]
+    );
+    const result = await client.query(
       `UPDATE dashboard_state
        SET payload = $1::jsonb, revision = revision + 1, updated_at = NOW()
        WHERE id = 1
        RETURNING payload, revision, updated_at`,
       [JSON.stringify(state)]
     );
+    await client.query(`
+      DELETE FROM dashboard_state_history
+      WHERE id NOT IN (
+        SELECT id FROM dashboard_state_history ORDER BY id DESC LIMIT 20
+      )
+    `);
+    await client.query('COMMIT');
     const row = result.rows[0];
     const message = JSON.stringify({
       type: 'state',
@@ -134,8 +184,78 @@ async function saveStateHandler(req, res, next) {
     });
     broadcast(message);
     res.json({ ok: true, revision: Number(row.revision), updatedAt: row.updated_at });
-  } catch (error) { next(error); }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(error);
+  } finally {
+    client.release();
+  }
 }
+
+app.post('/api/history/:id/restore', async (req, res, next) => {
+  const historyId = Number(req.params.id);
+  if (!Number.isSafeInteger(historyId) || historyId <= 0) {
+    return res.status(400).json({ error: 'Versão inválida.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const currentResult = await client.query(
+      'SELECT payload, revision FROM dashboard_state WHERE id = 1 FOR UPDATE'
+    );
+    const versionResult = await client.query(
+      'SELECT payload, action_label, action_at FROM dashboard_state_history WHERE id = $1',
+      [historyId]
+    );
+    if (!versionResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Essa versão não está mais disponível.' });
+    }
+    const current = currentResult.rows[0];
+    const version = versionResult.rows[0];
+    const restored = normalizeState(version.payload);
+    if (!restored) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'O estado desta versão é inválido.' });
+    }
+    await client.query(
+      `INSERT INTO dashboard_state_history
+       (payload, source_revision, action_label, action_at)
+       VALUES ($1::jsonb, $2, $3, NOW())`,
+      [JSON.stringify(current.payload), current.revision, `Antes da restauração: ${version.action_label}`]
+    );
+    restored.savedAt = Date.now();
+    const updated = await client.query(
+      `UPDATE dashboard_state
+       SET payload = $1::jsonb, revision = revision + 1, updated_at = NOW()
+       WHERE id = 1
+       RETURNING payload, revision, updated_at`,
+      [JSON.stringify(restored)]
+    );
+    await client.query(`
+      DELETE FROM dashboard_state_history
+      WHERE id NOT IN (
+        SELECT id FROM dashboard_state_history ORDER BY id DESC LIMIT 20
+      )
+    `);
+    await client.query('COMMIT');
+    const row = updated.rows[0];
+    const message = JSON.stringify({
+      type: 'state', state: row.payload,
+      revision: Number(row.revision), updatedAt: row.updated_at
+    });
+    broadcast(message);
+    res.json({
+      ok: true, state: row.payload, revision: Number(row.revision),
+      updatedAt: row.updated_at
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(error);
+  } finally {
+    client.release();
+  }
+});
 
 app.put('/api/state', saveStateHandler);
 // sendBeacon usa POST ao fechar a página; recebe o último clique antes da saída.
