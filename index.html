@@ -1577,7 +1577,7 @@ async function restoreVersion(id) {
 }
 
 // ── HISTÓRICO EM EXCEL (todos os dias trabalhados) ──
-function buildHistoricoWorkbook() {
+function buildHistoricoWorkbook(existingWb=null) {
   if (typeof XLSX === 'undefined') return null;
 
   const fmtData = ts => new Date(ts).toLocaleDateString('pt-BR');
@@ -1600,7 +1600,7 @@ function buildHistoricoWorkbook() {
   }));
 
   // ── Sheet 2: Giros finalizados (detalhado) ──
-  const girosRows = completedLog.slice().sort((a,b) => a.ts - b.ts).map(e => ({
+  let girosRows = completedLog.slice().sort((a,b) => a.ts - b.ts).map(e => ({
     'Data'         : fmtData(e.ts),
     'Hora'         : fmtHora(e.ts),
     'Giro'         : e.giroLabel || '',
@@ -1609,7 +1609,7 @@ function buildHistoricoWorkbook() {
   }));
 
   // ── Sheet 3: Planejamentos entregues (detalhado) ──
-  const planosRows = completedPlansLog.slice().sort((a,b) => a.ts - b.ts).map(e => ({
+  let planosRows = completedPlansLog.slice().sort((a,b) => a.ts - b.ts).map(e => ({
     'Data'              : fmtData(e.ts),
     'Hora'              : fmtHora(e.ts),
     'Planejamento'      : e.id || '',
@@ -1630,13 +1630,79 @@ function buildHistoricoWorkbook() {
     });
   })));
 
-  if (completedLog.length === 0 && completedPlansLog.length === 0 && estadoRows.length === 0) return null;
+  // Se já existir um Excel mestre na pasta, incorpora suas linhas antes de
+  // salvar. Assim registros antigos nunca são perdidos e duplicidades são ignoradas.
+  if (existingWb) {
+    const readRows = name => existingWb.Sheets[name]
+      ? XLSX.utils.sheet_to_json(existingWb.Sheets[name], {defval:''}) : [];
+    girosRows = girosRows.concat(readRows('Giros finalizados'));
+    planosRows = planosRows.concat(readRows('Planejamentos entregues'));
+  }
+  const uniqueRows = (rows, columns) => {
+    const seen = new Set();
+    return rows.filter(row => {
+      const key = columns.map(c => String(row[c] ?? '').trim()).join('\u001f');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a,b) => {
+      const parse = r => {
+        const m = String(r.Data || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        return m ? `${m[3]}${m[2]}${m[1]}${String(r.Hora || '').replace(':','')}` : '';
+      };
+      return parse(a).localeCompare(parse(b));
+    });
+  };
+  girosRows = uniqueRows(girosRows, ['Data','Hora','Giro','Identificação','Planejamento']);
+  planosRows = uniqueRows(planosRows, ['Data','Hora','Planejamento','Descrição completa']);
+
+  if (girosRows.length === 0 && planosRows.length === 0 && estadoRows.length === 0) return null;
+
+  // Recalcula o resumo já considerando o conteúdo antigo do Excel mestre.
+  const resumoMap = {};
+  girosRows.forEach(r => {
+    const d = String(r.Data || '');
+    if (!resumoMap[d]) resumoMap[d] = {'Data':d,'Giros finalizados':0,'Planejamentos entregues':0};
+    resumoMap[d]['Giros finalizados']++;
+  });
+  planosRows.forEach(r => {
+    const d = String(r.Data || '');
+    if (!resumoMap[d]) resumoMap[d] = {'Data':d,'Giros finalizados':0,'Planejamentos entregues':0};
+    resumoMap[d]['Planejamentos entregues']++;
+  });
+  const resumoFinal = Object.values(resumoMap).sort((a,b) => {
+    const conv = value => String(value).split('/').reverse().join('');
+    return conv(a.Data).localeCompare(conv(b.Data));
+  });
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoRows),  'Resumo por dia');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoFinal), 'Resumo por dia');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(girosRows),   'Giros finalizados');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(planosRows), 'Planejamentos entregues');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(estadoRows),  'Estado atual');
+
+  // Abas mensais para consulta rápida, reunindo giros e planos no mesmo lugar.
+  const monthly = {};
+  const addMonthly = row => {
+    const parts = String(row.Data || '').split('/');
+    if (parts.length !== 3) return;
+    const key = `${parts[2]}-${parts[1]}`;
+    (monthly[key] ||= []).push(row);
+  };
+  girosRows.forEach(r => addMonthly({
+    'Data':r.Data,'Hora':r.Hora,'Tipo':'Giro finalizado','Identificação':r['Identificação'],
+    'Giro':r.Giro,'Planejamento':r.Planejamento
+  }));
+  planosRows.forEach(r => addMonthly({
+    'Data':r.Data,'Hora':r.Hora,'Tipo':'Planejamento entregue','Identificação':r.Planejamento,
+    'Giro':'','Planejamento':r['Descrição completa']
+  }));
+  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  Object.keys(monthly).sort().forEach(key => {
+    const [year, month] = key.split('-');
+    const rows = monthly[key].sort((a,b) => `${a.Data} ${a.Hora}`.localeCompare(`${b.Data} ${b.Hora}`));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), `${monthNames[Number(month)-1]} ${year}`);
+  });
   return wb;
 }
 
@@ -1651,7 +1717,7 @@ function downloadHistoricoExcel(automatic=false, referenceDate=null) {
     return false;
   }
   const hoje = referenceDate || new Date();
-  const nomeArq = `historico-pcp-${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}.xlsx`;
+  const nomeArq = `Auditoria_PCP_${hoje.getFullYear()}.xlsx`;
   XLSX.writeFile(wb, nomeArq);
   toast(automatic ? 'Histórico diário baixado automaticamente!' : 'Histórico baixado em Excel!', 's');
   return true;
@@ -1665,9 +1731,14 @@ function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 
-function runDailyHistoryDownload(referenceDate) {
+async function runDailyHistoryDownload(referenceDate) {
   const key = localDateKey(referenceDate);
   if (localStorage.getItem(AUTO_HISTORY_LAST_KEY) === key) return;
+  if (historyDirHandle && await autoSaveHistoricoToFolder()) {
+    localStorage.setItem(AUTO_HISTORY_LAST_KEY, key);
+    toast('Excel anual atualizado automaticamente!', 's');
+    return;
+  }
   if (downloadHistoricoExcel(true, referenceDate)) {
     localStorage.setItem(AUTO_HISTORY_LAST_KEY, key);
   }
@@ -1688,8 +1759,9 @@ function scheduleDailyHistoryDownload() {
 }
 
 // ── PASTA AUTOMÁTICA (File System Access API — Chrome/Edge) ──
-// Depois de escolhida uma vez, o arquivo "historico-pcp.xlsx" dentro dela é
-// sobrescrito sozinho, sem download nem clique, a cada giro/plano finalizado.
+// Depois de escolhida uma vez, o arquivo anual "Auditoria_PCP_AAAA.xlsx"
+// é atualizado sozinho. Antes de gravar, o dashboard lê o arquivo existente,
+// preserva registros antigos e elimina duplicidades.
 let historyDirHandle = null;
 const FS_SUPPORTED = typeof window.showDirectoryPicker === 'function';
 
@@ -1777,19 +1849,29 @@ async function tryRestoreFolderOnBoot() {
 }
 
 async function autoSaveHistoricoToFolder() {
-  if (!historyDirHandle) return;
+  if (!historyDirHandle) return false;
   try {
     const perm = await historyDirHandle.queryPermission({ mode: 'readwrite' });
-    if (perm !== 'granted') { updateFolderStatus('reconnect'); return; }
-    const wb = buildHistoricoWorkbook();
-    if (!wb) return;
+    if (perm !== 'granted') { updateFolderStatus('reconnect'); return false; }
+    const fileName = `Auditoria_PCP_${new Date().getFullYear()}.xlsx`;
+    const fileHandle = await historyDirHandle.getFileHandle(fileName, { create: true });
+    let existingWb = null;
+    try {
+      const existingFile = await fileHandle.getFile();
+      if (existingFile.size > 0) {
+        existingWb = XLSX.read(await existingFile.arrayBuffer(), {type:'array'});
+      }
+    } catch(e) {}
+    const wb = buildHistoricoWorkbook(existingWb);
+    if (!wb) return false;
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const fileHandle = await historyDirHandle.getFileHandle('historico-pcp.xlsx', { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(new Blob([wbout], { type: 'application/octet-stream' }));
     await writable.close();
+    return true;
   } catch(e) {
     console.error('Erro ao salvar automaticamente na pasta:', e);
+    return false;
   }
 }
 

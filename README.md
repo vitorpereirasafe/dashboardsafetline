@@ -27,8 +27,10 @@ pela rolagem vertical.
   sistema pede confirmação mostrando o nome antes de excluir.
 - O menu **Versões** permite restaurar uma das últimas 20 alterações, sempre
   confirmando a ação e exibindo a data e o horário registrados.
-- Com a página aberta, às **23:59** o histórico diário é baixado automaticamente
-  em Excel, incluindo uma fotografia do estado atual de todas as OFs.
+- Com a pasta automática autorizada, o dashboard atualiza o arquivo anual
+  **Auditoria_PCP_2026.xlsx**, preservando os registros anteriores, eliminando
+  duplicidades e acrescentando abas mensais. Sem a autorização da pasta, às
+  **23:59** será baixada uma nova cópia de segurança.
 
 ## O que fica salvo
 
